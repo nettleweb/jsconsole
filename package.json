@@ -1,0 +1,41 @@
+{
+	"name": "@whitespider/jsconsole",
+	"author": "WhiteSpider Dev <support@whitespider.dev> (https://whitespider.dev/)",
+	"license": "GPL-3.0",
+	"version": "0.0.1",
+	"homepage": "https://github.com/whitespider-dev/jsconsole#readme",
+	"description": "",
+	"main": "main.js",
+	"type": "module",
+	"files": [],
+	"keywords": [],
+	"engines": {
+		"node": ">=18.17.1",
+		"vscode": "^1.22.0"
+	},
+	"bugs": {
+		"url": "https://github.com/whitespider-dev/jsconsole/issues",
+		"email": "support@whitespider.dev"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/whitespider-dev/jsconsole.git"
+	},
+	"devDependencies": {
+		"@babel/parser": "^7.24.5",
+		"@babel/types": "^7.24.5",
+		"ace-code": "^1.33.2",
+		"ts-loader": "^9.5.1",
+		"webpack": "^5.91.0",
+		"webpack-cli": "^5.1.4",
+		"google-closure-compiler": "^20240317.0.0"
+	},
+	"scripts": {
+		"build": "./scripts/build.sh",
+		"clean": "./scripts/clean.js",
+		"config": "./scripts/config.js",
+		"compile": "./scripts/compile.js",
+		"genprev": "./scripts/genprev.js",
+		"start": "./scripts/start.py > /dev/null 2>&1 & disown"
+	}
+}
