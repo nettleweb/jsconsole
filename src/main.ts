@@ -52,7 +52,6 @@ import rewrite from "./rewrite";
 
 
 	const input = ace.edit(q("#input>div"), {
-		value: "Example",
 		tabSize: 4,
 		minLines: 1,
 		maxLines: 99,
@@ -63,8 +62,10 @@ import rewrite from "./rewrite";
 		newLineMode: "unix",
 		animatedScroll: false,
 		enableAutoIndent: true,
+		indentedSoftWrap: true,
 		highlightActiveLine: false,
-		autoScrollEditorIntoView: true,
+		wrapBehavioursEnabled: true,
+		autoScrollEditorIntoView: true
 	});
 
 	const history: string[] = [];
@@ -76,6 +77,7 @@ import rewrite from "./rewrite";
 	input.focus();
 	input.resize(true);
 	input.session.setMode(mode);
+	input.session.setUseWrapMode(true);
 
 	input.commands.addCommand({
 		exec: () => {
@@ -195,8 +197,8 @@ import rewrite from "./rewrite";
 		const elem = doc.createElement("hr");
 		output.appendChild(elem);
 		elem.scrollIntoView({
-			block: "start",
-			inline: "start",
+			block: "nearest",
+			inline: "nearest",
 			behavior: "instant"
 		});
 	}
@@ -205,23 +207,26 @@ import rewrite from "./rewrite";
 		const elem = doc.createElement("div");
 		output.appendChild(elem);
 		elem.scrollIntoView({
-			block: "end",
-			inline: "end",
+			block: "nearest",
+			inline: "nearest",
 			behavior: "instant"
 		});
 
 		ace.edit(elem, {
 			value: cmd,
-			readOnly: true,
+			tabSize: 4,
 			minLines: 1,
 			maxLines: 99,
+			readOnly: true,
 			fontSize: 14,
 			fontFamily: "Ubuntu Mono",
 			showGutter: false,
 			cursorStyle: "ace",
 			newLineMode: "unix",
 			animatedScroll: false,
-			highlightActiveLine: false
+			indentedSoftWrap: true,
+			highlightActiveLine: false,
+			wrapBehavioursEnabled: true
 		}).session.setMode(mode);
 	}
 
