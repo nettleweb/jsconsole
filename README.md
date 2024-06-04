@@ -8,7 +8,7 @@ There is also a demo version of JSConsole available on the <a href="https://whit
 ## Embed Code
 You can embed JSConsole into your website with the following code:
 ```html
-<embed type="text/plain" width="1024" height="768" src="https://whitespider.dev/ext/jsconsole/index.xht" />
+<embed type="text/plain" width="1024" height="768" src="https://whitespider.dev/ext/console/" />
 ```
 
 ## License
