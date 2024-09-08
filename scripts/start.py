@@ -10,11 +10,9 @@ class _HTTPRequestHandler(server.SimpleHTTPRequestHandler):
 
 	def end_headers(self):
 		self.send_header("Referrer-Policy", "no-referrer");
-		self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), accelerometer=(), display-capture=(), browsing-topics=(), screen-wake-lock=()");
-		self.send_header("X-Content-Type-Options", "nosniff");
-		# self.send_header("Content-Security-Policy", "");
-		# self.send_header("Cross-Origin-Embedder-Policy", "require-corp");
-		# self.send_header("Cross-Origin-Opener-Policy", "same-origin");
+		self.send_header("Permissions-Policy", "camera=(), gyroscope=(), microphone=(), geolocation=(), local-fonts=(), accelerometer=(), browsing-topics=(), display-capture=(), screen-wake-lock=()");
+		self.send_header("Cross-Origin-Opener-Policy", "same-origin");
+		self.send_header("Cross-Origin-Embedder-Policy", "require-corp");
 		super().end_headers();
 
 server.test(HandlerClass=_HTTPRequestHandler, protocol="HTTP/2.0", port=8000, bind="127.0.0.1");

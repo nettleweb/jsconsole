@@ -1,6 +1,8 @@
 import * as ace from "ace-code";
 import * as js from "ace-code/src/mode/typescript";
-import rewrite from "./rewrite";
+import Rewriter from "./Rewriter";
+import Module from "./Module";
+import Constants from "./Constants";
 
 "use strict"; debugger; (async ({ window: win, document: doc }: {
 	readonly window: Window;
@@ -20,27 +22,12 @@ import rewrite from "./rewrite";
 		throw new Error("Failed to query selector: " + q);
 	}
 
-	const errElem = $("error");
-
-	win.onerror = (e, source, lineno, colno, err) => {
-		let msg = "Unhandled error at " + (source || "unknown source ");
-		if (lineno != null)
-			msg += lineno;
-		if (colno != null)
-			msg += ":" + colno;
-		if (err != null)
-			msg += "\n\n" + err;
-
-		errElem.textContent = msg;
-		errElem.style.display = "block";
-	};
-
 	if (doc.readyState !== "complete") {
 		await new Promise<void>((resolve) => {
 			const callback = () => {
 				if (doc.readyState === "complete") {
 					doc.removeEventListener("readystatechange", callback);
-					resolve();
+					setTimeout(resolve, 50, null);
 				}
 			};
 			doc.addEventListener("readystatechange", callback, { passive: true });
@@ -50,6 +37,39 @@ import rewrite from "./rewrite";
 	win.stop();
 	win.focus();
 
+	// cache built-in objects to avoid error after being modified by the executed code
+	const { Reflect, DataView, Function, Object, String, Error } = win;
+
+	const isArray = Array.isArray.bind(Array);
+	const isArrayBufferView = ArrayBuffer.isView.bind(ArrayBuffer);
+
+	const toStringTag = Symbol.toStringTag;
+
+	// freeze the reflect object to avoid errors
+	Object.freeze(Object.setPrototypeOf(Reflect, null));
+
+	win.addEventListener("error", (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+
+		const msg = "Unhandled error at " + (e.filename || "unknown source") + " " + (e.lineno || "X") + ":" + (e.colno || "X") + "\n\n Message: " + String(e.error);
+
+		console.error(msg);
+		errElem.textContent = msg;
+		errElem.style.display = "block";
+	});
+	win.addEventListener("unhandledrejection", (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+
+		console.error("Unhandled rejection: ", e.reason);
+	});
+
+	const history: string[] = [];
+	const errElem = $("error");
+	const output = $("output");
+	const mode = new js.Mode();
+	let current: number = 0;
 
 	const input = ace.edit(q("#input>div"), {
 		tabSize: 4,
@@ -67,12 +87,6 @@ import rewrite from "./rewrite";
 		wrapBehavioursEnabled: true,
 		autoScrollEditorIntoView: true
 	});
-
-	const history: string[] = [];
-	const output = $("output");
-	const scope = Object.create(null);
-	const mode = new js.Mode();
-	let current: number = 0;
 
 	input.focus();
 	input.resize(true);
@@ -129,6 +143,31 @@ import rewrite from "./rewrite";
 		readOnly: false
 	});
 
+	const scope = Object.create(null);
+	const module = new Module();
+	const scopeId = "scope_" + Date.now().toString(36);
+	const DUMMY_STRING = "&quot;<span style=\"color:#808080\">...</span>&quot;";
+	const DUMMY_FUNCTION = "<span style=\"color:#000080\">function</span> (<span style=\"color:#808080\">...</span>) { <span style=\"color:#808080\">...</span> }";
+
+	Object.defineProperty(module, "global", {
+		value: (...args: string[]) => {
+			for (const k of args)
+				win[k] = void 0;
+		},
+		writable: false,
+		enumerable: false,
+		configurable: false
+	});
+	Object.defineProperty(module, "scope", {
+		value: (...args: string[]) => {
+			for (const k of args)
+				scope[k] = void 0;
+		},
+		writable: false,
+		enumerable: false,
+		configurable: false
+	});
+
 	function isArrayBuffer(obj: any): obj is ArrayBuffer {
 		try {
 			new DataView(obj, 0, 0);
@@ -165,13 +204,13 @@ import rewrite from "./rewrite";
 
 	function getClassName(obj: any): string | null {
 		try {
-			const name = obj[Symbol.toStringTag];
+			const name = obj[toStringTag];
 			if (typeof name === "string")
 				return name;
 
 			const struct = obj["constructor"];
 			if (typeof struct === "function") {
-				const name = struct.name;
+				const name = struct["name"];
 				if (typeof name === "string")
 					return name;
 			}
@@ -229,9 +268,6 @@ import rewrite from "./rewrite";
 			wrapBehavioursEnabled: true
 		}).session.setMode(mode);
 	}
-
-	const DUMMY_STRING = "&quot;<span style=\"color:#808080\">...</span>&quot;";
-	const DUMMY_FUNCTION = "<span style=\"color:#000080\">function</span> (<span style=\"color:#808080\">...</span>) { <span style=\"color:#808080\">...</span> }";
 
 	function printString(value: string, parent?: HTMLElement | nul) {
 		const elem = doc.createElement("span");
@@ -353,7 +389,7 @@ import rewrite from "./rewrite";
 					print(name.length > 0 ? name + " {\n" : "{\n", void 0, text);
 
 					{
-						const proto = Object.getPrototypeOf(value);
+						const proto = Reflect.getPrototypeOf(value);
 						if (proto != null) {
 							print("\t#prototype: ", void 0, text);
 							printObject(proto, text);
@@ -361,12 +397,11 @@ import rewrite from "./rewrite";
 						}
 					}
 
-					{
-						const map: Record<PropertyKey, PropertyDescriptor> = Object.getOwnPropertyDescriptors(value);
-						for (const key of [...Object.getOwnPropertyNames(map), ...Object.getOwnPropertySymbols(map)]) {
-							print("\t", void 0, text);
+					for (const key of Reflect.ownKeys(value)) {
+						print("\t", void 0, text);
 
-							const desc = map[key];
+						const desc = Reflect.getOwnPropertyDescriptor(value, key);
+						if (desc != null) { // keep null check to avoid rare case errors
 							if ("value" in desc) {
 								if (!(desc.writable ?? true))
 									print("readonly ", "#000080", text);
@@ -472,11 +507,11 @@ import rewrite from "./rewrite";
 			default:
 				if (value == null)
 					print("null", "#000080", parent);
-				else if (Array.isArray(value))
+				else if (isArray(value))
 					printArray(value, parent);
 				else if (isArrayBuffer(value))
 					print("ArrayBuffer {}", void 0, parent);
-				else if (ArrayBuffer.isView(value))
+				else if (isArrayBufferView(value))
 					print("ArrayBufferView {}", void 0, parent);
 				else
 					printObject(value, parent);
@@ -527,7 +562,7 @@ import rewrite from "./rewrite";
 		}
 
 		try {
-			cmd = "\"use strict\";\n" + rewrite(";" + cmd);
+			cmd = "\"use strict\";\n" + Rewriter.rewrite(";" + cmd);
 		} catch (err) {
 			println(String(err), "#ff0000");
 			printhr();
@@ -537,7 +572,7 @@ import rewrite from "./rewrite";
 		let value: any;
 
 		try {
-			value = await new Function("arguments", "window", "document", "__scope__", "with(__scope__){return(async()=>{\n\"use strict\";\n" + cmd + "\n})();}").apply(win, [void 0, win, doc, scope]);
+			value = await Reflect.apply(new Function("arguments", "self", "window", "globalThis", scopeId, Constants.module, "with(" + scopeId + "){return(async()=>{\"use strict\";\n" + cmd + "\n;\n})();}"), win, [void 0, win, win, win, scope, module]);
 		} catch (err) {
 			println("Uncaught " + err, "#ff0000");
 			printhr();
